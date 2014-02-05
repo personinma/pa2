@@ -4,13 +4,11 @@ require_relative 'movie_test'
 
 class MovieData
 
-	attr_reader :movie_list, :user_list
 	def initialize(file, test = nil)
 		@master_list = Array.new # will be used as the training list
-		@test_list = Array.new
-		@popular_list = Hash.new(0) # from PA1
-		@movie_list = Hash.new([])
-		@user_list = Hash.new([])
+		@test_list = Array.new # test set
+		@movie_list = Hash.new()
+		@user_list = Hash.new()
 		load_data(file, test)
 	end
 
@@ -20,9 +18,7 @@ class MovieData
 		else
 			load_data_helper(file, 80000, "training")
 			load_data_helper(test, 20000, "test")
-		end
-		# load_popularity_list # preload @popular_list
-		"Data Loaded"
+		end		
 	end
 
 	def load_data_helper(path, k, type)
@@ -32,68 +28,33 @@ class MovieData
 				line = line.split
 				if type == "training"
 					@master_list.push([line[0].to_i,line[1].to_i,line[2].to_i])
-					@user_list[line[0].to_i].push([line[1].to_i,line[2].to_i])
-					@movie_list[line[1].to_i].push(line[0].to_i)
+					# kudos to Amin for helping out on the following two lines!
+					@user_list[line[0].to_i] = @user_list[line[0].to_i].nil? ? [[line[1].to_i,line[2].to_i]] : @user_list[line[0].to_i].push([line[1].to_i,line[2].to_i])
+					@movie_list[line[1].to_i] = @movie_list[line[1].to_i].nil? ? [line[0].to_i] : @movie_list[line[1].to_i].push(line[0].to_i)
 				elsif type == "test"
 					@test_list.push([line[0].to_i,line[1].to_i,line[2].to_i])
 				end
 			end
 			counter += 1
 		end
-	end
-
-	##
-	# helper method for load_popularity_list. method calculates
-	# the popularity of a given movie id
-	def popularity_helper(movie_id)
-		count = 0
-		rating = 0
-		@master_list.each do |user, mov_id, rate|
-			if mov_id == movie_id
-				count += 1
-				rating += rate
-			end
-		end
-		((count * 0.7) + (rating * 0.3)).round(3)
-	end
-
-	##
-	# will load the popularity factors of all the movies. 
-	# method is used in load_data to prefetch @popular_list
-	def load_popularity_list
-		@master_list.each do |user, mov_id, rate|
-			if @popular_list[mov_id] == -1
-				@popular_list[mov_id] = popularity_helper(mov_id)
-				end
-		end
-	end
-
-	##
-	# check the popularity factor of a given movie id
-	def popularity(movie_id)
-		if @popular_list[movie_id] == 0
-			put "Movie Does Not Exist."
-		else
-			return @popular_list[movie_id]
-		end
+		"Data Loaded"
 	end
 	
 	##
-	# populates list of movies from most popular to least
-	def popularity_list
-		@popular_list.sort_by {|_,val| -val}
-	end
-	
-	##
-	# presents a similarity factor between two users
+	# presents a similarity factor between two users. 
+	# note: made some modifications from PA1 for processing
+	# time efficiency.
 	def similarity(user1, user2)
 		user_list1 = Hash.new(0)
 		user_list2 = Hash.new(0)
-		@master_list.each do |user, mov_id, rate|
-			if user == user1
+		movies_u1 = @user_list[user1]
+		#@master_list.each do |user, mov_id, rate|
+		movies_u1.each do |mov_id, rate|
+			if @movie_list[mov_id].include? user2
+			#if user == user1
 				user_list1[mov_id] = rate
-			elsif user == user2
-				user_list2[mov_id] = rate
+			#elsif user == user2
+				user_list2[mov_id] = rating(user2, mov_id)
 			end			
 		end
 		similar_movies(user_list1, user_list2)
@@ -157,7 +118,33 @@ class MovieData
 	##
 	# predict method for prediction rating of movie m from user u
 	def predict(u, m)
-		# testing several algorithms at the moment
+		sum = 0.0
+		counter = 0
+		sim_list = most_similar(u)
+		sim_list.first(10).each do |a, b|
+			sim_rate = rating(a, m)
+			if sim_rate > 0
+				sum += sim_rate
+				counter += 1
+			end
+		end
+		# if there is no movie match in similar users
+		if counter == 0 
+			return predict_helper(m, sum, counter)
+		end
+		return sum / counter
+	end
+
+	##
+	# prediction helper method: when predicting with similar users fail
+	# prediction will be average rating of movies across all users in 
+	# training set
+	def predict_helper(m, sum, counter)
+		@movie_list[m].each do |x|
+			sum += rating(x, m)
+			counter += 1
+		end
+		return sum / counter
 	end
 
 	##
@@ -172,14 +159,6 @@ class MovieData
 			end
 			counter += 1
 		end
-		return MovieTest(results)
+		return MovieTest.new(results)
 	end
-
 end
-
-puts "Running Test for PA2"
-test = MovieData.new("u1.base", "u1.test")
-#puts test.viewers(1)
-#puts test.movies(1)
-puts test.user_list[1]
-puts test.rating(1, 58)

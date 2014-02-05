@@ -22,7 +22,7 @@ class MovieTest
 		average = mean
 		sum = 0.0
 		@results_list.each do |u, m, r, p|
-			sum += ((r - p) - average)**2
+			sum += ((r - p).abs - average)**2
 		end
 		return Math.sqrt(sum / @results_list.length)
 	end
@@ -40,10 +40,6 @@ class MovieTest
 	##
 	# return a list of arrays containing results (u, m, r, p)
 	def to_a
-		#@results_list.each do |u, m, r, p|
-			#puts "[#{u},#{m},#{r},#{p}]"
-		#end
 		return @results_list
 	end
-
 end
